@@ -11,7 +11,6 @@ print(f"\nWelcome Agent {player}.")
 print("A criminal is escaping through international airports.")
 print("Track them before they disappear.\n")
 
-# connect to database
 connection = mysql.connector.connect(
     host="localhost",
     user="root",
@@ -27,12 +26,14 @@ FROM airport
 WHERE type='large_airport'
 GROUP BY iso_country
 ORDER BY RAND()
-LIMIT 10
+LIMIT 20
 """)
 
 airports = cursor.fetchall()
 
-print("\nAirports loaded from database:\n")
+options = random.sample(airports, 4)
 
-for airport in airports:
-    print(airport)
+print("\nPossible airports to investigate:\n")
+
+for i, airport in enumerate(options):
+    print(i+1, "-", airport[0], "(", airport[1], ",", airport[2], ")")
