@@ -21,10 +21,14 @@ connection = mysql.connector.connect(
 cursor = connection.cursor()
 
 cursor.execute("""
-SELECT name, municipality, iso_country, continent
+SELECT airport.name,
+       airport.municipality,
+       country.name,
+       airport.continent
 FROM airport
-WHERE type='large_airport'
-GROUP BY iso_country
+JOIN country ON airport.iso_country = country.iso_country
+WHERE airport.type='large_airport'
+GROUP BY airport.iso_country
 ORDER BY RAND()
 LIMIT 20
 """)
@@ -63,7 +67,9 @@ for round_number in range(1, rounds + 1):
     print("\nPossible airports to investigate:\n")
 
     for i, airport in enumerate(options):
-        print(i+1, "-", airport[0], "(", airport[1], ",", airport[2], ")")
+        city = airport[1].split("(")[0].split("-")[0].strip()
+        country = airport[2]
+        print(i+1, "-", city + ",", country)
 
     use_help = input("\nUse companion help? (y/n): ")
 
@@ -79,8 +85,10 @@ for round_number in range(1, rounds + 1):
     choice = int(input("\nChoose an airport to investigate (1-4): "))
     selected_airport = options[choice - 1]
 
-    print("\nYou chose to investigate:")
-    print(selected_airport[0], "in", selected_airport[1], ",", selected_airport[2])
+    city = selected_airport[1].split("(")[0].split("-")[0].strip()
+    country = selected_airport[2]
+
+    print("\nYou chose to investigate:", city + ",", country)
 
     if selected_airport == criminal_airport:
         print("\nYou found the criminal! Mission success.")
