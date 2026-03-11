@@ -7,19 +7,12 @@ print("====================================")
 
 player = input("Enter your agent name: ")
 
-print(f"\nWelcome Agent {player}.\n")
+fuel = 20
+time_left = 20
+criminals_caught = 0
+rounds = 5
 
-print("MISSION BRIEFING:")
-print("A criminal known as 'The Phantom Traveler' is moving between")
-print("international airports trying to disappear.")
-print()
-print("Your mission is to investigate airports, gather clues,")
-print("and capture the suspect before they escape.")
-print()
-print("You have limited resources.")
-print("Fuel: 10 | Time: 10\n")
-
-input("Press ENTER to begin the investigation...")
+last_action = None
 
 connection = mysql.connector.connect(
     host="localhost",
@@ -30,170 +23,191 @@ connection = mysql.connector.connect(
 
 cursor = connection.cursor()
 
-cursor.execute("""
-SELECT airport.name,
-       airport.municipality,
-       country.name,
-       airport.continent
-FROM airport
-JOIN country ON airport.iso_country = country.iso_country
-WHERE airport.type='large_airport'
-ORDER BY RAND()
-LIMIT 60
-""")
+def get_airports(continent):
 
-airports = cursor.fetchall()
+    cursor.execute("""
+    SELECT airport.name,
+           airport.municipality,
+           country.name,
+           airport.continent
+    FROM airport
+    JOIN country ON airport.iso_country = country.iso_country
+    WHERE airport.type='large_airport'
+    AND airport.continent = %s
+    ORDER BY RAND()
+    LIMIT 10
+    """, (continent,))
 
-rounds = 6
-fuel = 10
-time_left = 10
+    return cursor.fetchall()
 
-# Criminal travel route
-criminal_route = random.sample(airports, rounds)
 
-caught = False
+current_location = ("Helsinki Airport","Helsinki","Finland","EU")
 
-for round_number in range(1, rounds + 1):
+route = ["EU","AS","NA","EU","RANDOM"]
 
-    criminal_airport = criminal_route[round_number - 1]
+for r in range(rounds):
 
     print("\n==============================")
-    print("Round", round_number)
+    print("ROUND", r+1, "/ 5")
+    print("Location:", current_location[1] + ", " + current_location[2])
     print("Fuel:", fuel, "| Time:", time_left)
+    print("Criminals caught:", criminals_caught)
     print("==============================")
 
-    actions_used = 0
+    if route[r] == "RANDOM":
 
-    while True:
+        cursor.execute("""
+        SELECT airport.name,
+               airport.municipality,
+               country.name,
+               airport.continent
+        FROM airport
+        JOIN country ON airport.iso_country = country.iso_country
+        WHERE airport.type='large_airport'
+        ORDER BY RAND()
+        LIMIT 10
+        """)
 
-        print("\nChoose an action:")
-        print("1 Check passenger records (cost 1 time)")
-        print("2 Analyze flight paths (cost 1 fuel)")
-        print("3 Airport CCTV search (cost 2 time)")
-        print("4 Investigate airport (cost 2 fuel + 2 time)")
+        airports = cursor.fetchall()
 
-        action = input("Action: ")
+    else:
 
-        if action == "1":
+        airports = get_airports(route[r])
 
-            if time_left < 1:
-                print("Not enough time.")
-                continue
+    criminal_airport = random.choice(airports)
 
-            time_left -= 1
-            actions_used += 1
+    options = random.sample(airports,4)
 
-            continent = criminal_airport[3]
+    if criminal_airport not in options:
+        options[0] = criminal_airport
 
-            continents = {
-                "EU": "Europe",
-                "AS": "Asia",
-                "AF": "Africa",
-                "NA": "North America",
-                "SA": "South America",
-                "OC": "Oceania"
-            }
+    random.shuffle(options)
 
-            print("\nPassenger records indicate the suspect flew to:",
-                  continents.get(continent, "unknown region"))
+    actions = {
+        "1": "Passenger Records (cost 2 time)",
+        "2": "Flight Path Analysis (cost 2 fuel + 6 time)",
+        "3": "Airport CCTV (cost 2 fuel + 2 time)",
+        "4": "Informant Tip (cost 6 fuel + 4 time)"
+    }
 
-        elif action == "2":
+    print("\nChoose ONE investigation:\n")
 
-            if fuel < 1:
-                print("Not enough fuel.")
-                continue
+    for key in actions:
+        if key != last_action:
+            print(key, actions[key])
 
-            fuel -= 1
-            actions_used += 1
+    action = input("Action: ")
 
-            print("\nFlight path analysis suggests a long international flight.")
+    if action == last_action or action not in actions:
+        print("Invalid investigation.")
+        continue
 
-        elif action == "3":
+    if action == "1":
 
-            if time_left < 2:
-                print("Not enough time.")
-                continue
-
-            time_left -= 2
-            actions_used += 1
-
-            city = criminal_airport[1]
-            city = city.split("(")[0].split("-")[0].strip()
-
-            print("\nAirport CCTV spotted a suspicious traveler")
-            print("passing through:", city)
-
-        elif action == "4":
-
-            if fuel < 2 or time_left < 2:
-                print("Not enough resources.")
-                continue
-
-            fuel -= 2
-            time_left -= 2
-
-            # Build investigation options (1 correct + 3 random)
-            options = [criminal_airport]
-
-            while len(options) < 4:
-                candidate = random.choice(airports)
-                if candidate not in options:
-                    options.append(candidate)
-
-            random.shuffle(options)
-
-            print("\nAirports to investigate:\n")
-
-            for i, airport in enumerate(options):
-
-                city = airport[1].split("(")[0].split("-")[0].strip()
-                country = airport[2]
-
-                print(i+1, "-", city + ",", country)
-
-            try:
-                choice = int(input("\nChoose airport (1-4): "))
-
-                if choice < 1 or choice > 4:
-                    print("Invalid airport.")
-                    continue
-
-            except:
-                print("Invalid input.")
-                continue
-
-            selected = options[choice - 1]
-
-            city = selected[1].split("(")[0].split("-")[0].strip()
-            country = selected[2]
-
-            print("\nYou investigated:", city + ",", country)
-
-            if selected == criminal_airport:
-
-                print("\nYou found the criminal!")
-                print("MISSION COMPLETE")
-
-                caught = True
-                break
-
-            else:
-
-                print("\nWrong lead. The suspect escaped again.")
-                break
-
-        else:
-            print("Invalid action.")
+        if time_left < 2:
+            print("Not enough time.")
             continue
 
-        if actions_used >= 3:
-            print("\nYou must make a move now.")
+        time_left -= 2
+
+        continent_names = {
+            "EU":"Europe",
+            "AS":"Asia",
+            "NA":"North America",
+            "SA":"South America",
+            "AF":"Africa",
+            "OC":"Oceania"
+        }
+
+        print("\nPassenger records show travel to:",
+              continent_names.get(criminal_airport[3],"Unknown"))
+
+    elif action == "2":
+
+        if fuel < 2 or time_left < 6:
+            print("Not enough resources.")
             continue
 
-        if fuel <= 0 or time_left <= 0:
-            break
+        fuel -= 2
+        time_left -= 6
 
-    if caught or fuel <= 0 or time_left <= 0:
+        print("\nFlight analysis shows a long international route.")
+
+    elif action == "3":
+
+        if fuel < 2 or time_left < 2:
+            print("Not enough resources.")
+            continue
+
+        fuel -= 2
+        time_left -= 2
+
+        city = criminal_airport[1].split("(")[0].split("-")[0].strip()
+
+        print("\nCCTV spotted the suspect heading toward:", city)
+
+    elif action == "4":
+
+        if fuel < 6 or time_left < 4:
+            print("Not enough resources.")
+            continue
+
+        fuel -= 6
+        time_left -= 4
+
+        country = criminal_airport[2]
+        letter = country[0]
+
+        print("\nInformant tip: destination country starts with:", letter)
+
+    last_action = action
+
+    print("\nPossible destinations:\n")
+
+    for i, airport in enumerate(options):
+
+        city = airport[1].split("(")[0].split("-")[0].strip()
+        country = airport[2]
+
+        print(i+1,"-",city+",",country)
+
+    try:
+        choice = int(input("\nChoose airport (1-4): "))
+    except:
+        print("Invalid input")
+        continue
+
+    if choice < 1 or choice > 4:
+        print("Invalid choice")
+        continue
+
+    selected = options[choice-1]
+
+    fuel -= 2
+    time_left -= 2
+
+    city = selected[1].split("(")[0].split("-")[0].strip()
+    country = selected[2]
+
+    print("\nTraveling to:",city+",",country)
+
+    if selected == criminal_airport:
+
+        print("✔ Criminal captured!")
+        criminals_caught += 1
+
+    else:
+
+        correct_city = criminal_airport[1]
+        correct_country = criminal_airport[2]
+
+        print("✖ Wrong location.")
+        print("Criminal was in:",correct_city+",",correct_country)
+
+    current_location = selected
+
+    if fuel <= 0 or time_left <= 0:
+        print("\nYou ran out of resources.")
         break
 
 
@@ -201,28 +215,19 @@ print("\n==============================")
 print("MISSION SUMMARY")
 print("==============================")
 
-if caught:
+print("Criminals caught:",criminals_caught)
+print("Fuel remaining:",fuel)
+print("Time remaining:",time_left)
 
-    print("Result: SUCCESS")
-    print("You captured the Phantom Traveler.")
-
+if criminals_caught == 5:
+    rating = "LEGENDARY AGENT"
+elif criminals_caught >= 4:
+    rating = "ELITE AGENT"
+elif criminals_caught >= 3:
+    rating = "GOOD AGENT"
+elif criminals_caught >= 2:
+    rating = "ROOKIE AGENT"
 else:
+    rating = "FIRED"
 
-    print("Result: FAILURE")
-    print("The suspect escaped.")
-
-print("\nFuel remaining:", fuel)
-print("Time remaining:", time_left)
-
-score = fuel + time_left
-
-if score >= 12:
-    rating = "EXCELLENT INVESTIGATOR"
-elif score >= 7:
-    rating = "GREAT DETECTIVE"
-elif score >= 3:
-    rating = "GOOD EFFORT"
-else:
-    rating = "BARELY SURVIVED"
-
-print("Rating:", rating)
+print("Rating:",rating)
