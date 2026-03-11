@@ -10,13 +10,14 @@ player = input("Enter your agent name: ")
 print(f"\nWelcome Agent {player}.\n")
 
 print("MISSION BRIEFING:")
-print("Interpol has issued a global alert about a mysterious criminal known")
-print("as 'The Phantom Traveler'. The suspect has been rapidly moving between")
-print("international airports to avoid capture.\n")
-
-print("Your mission is to track the suspect and intercept them.")
-print("Each round you can gather information or investigate airports.")
-print("Use your resources wisely.\n")
+print("A criminal known as 'The Phantom Traveler' is moving between")
+print("international airports trying to disappear.")
+print()
+print("Your mission is to investigate airports, gather clues,")
+print("and capture the suspect before they escape.")
+print()
+print("You have limited resources.")
+print("Fuel: 10 | Time: 10\n")
 
 input("Press ENTER to begin the investigation...")
 
@@ -38,111 +39,190 @@ FROM airport
 JOIN country ON airport.iso_country = country.iso_country
 WHERE airport.type='large_airport'
 ORDER BY RAND()
-LIMIT 50
+LIMIT 60
 """)
 
 airports = cursor.fetchall()
 
-rounds = 5
+rounds = 6
 fuel = 10
 time_left = 10
-companion_help = 2
 
-criminal_airport = random.choice(airports)
+# Criminal travel route
+criminal_route = random.sample(airports, rounds)
+
+caught = False
 
 for round_number in range(1, rounds + 1):
 
-    print("\n----------------------------")
+    criminal_airport = criminal_route[round_number - 1]
+
+    print("\n==============================")
     print("Round", round_number)
     print("Fuel:", fuel, "| Time:", time_left)
-    print("----------------------------")
+    print("==============================")
 
-    print("\nWhat do you want to do?")
-    print("1. Investigate an airport")
-    print("2. Check flight records (cost: 1 time)")
-    print("3. Ask companion for intelligence (cost: 3 fuel + 3 time)")
-    print("4. Skip this round")
+    actions_used = 0
 
-    action = input("Choose action: ")
+    while True:
 
-    # Flight records hint
-    if action == "2":
+        print("\nChoose an action:")
+        print("1 Check passenger records (cost 1 time)")
+        print("2 Analyze flight paths (cost 1 fuel)")
+        print("3 Airport CCTV search (cost 2 time)")
+        print("4 Investigate airport (cost 2 fuel + 2 time)")
 
-        time_left -= 1
+        action = input("Action: ")
 
-        continent = criminal_airport[3]
+        if action == "1":
 
-        continent_names = {
-            "EU": "Europe",
-            "AS": "Asia",
-            "AF": "Africa",
-            "NA": "North America",
-            "SA": "South America",
-            "OC": "Oceania"
-        }
+            if time_left < 1:
+                print("Not enough time.")
+                continue
 
-        print("\nFlight records show the suspect boarded a plane heading to:",
-              continent_names.get(continent, "Unknown region"))
+            time_left -= 1
+            actions_used += 1
 
-    # Companion intelligence
-    elif action == "3" and companion_help > 0:
+            continent = criminal_airport[3]
 
-        companion_help -= 1
-        fuel -= 3
-        time_left -= 3
+            continents = {
+                "EU": "Europe",
+                "AS": "Asia",
+                "AF": "Africa",
+                "NA": "North America",
+                "SA": "South America",
+                "OC": "Oceania"
+            }
 
-        continent = criminal_airport[3]
+            print("\nPassenger records indicate the suspect flew to:",
+                  continents.get(continent, "unknown region"))
 
-        print("\nCompanion Intel:")
-        print("Interpol satellite tracking suggests the suspect is somewhere in", continent)
+        elif action == "2":
 
-    # Investigate airports
-    elif action == "1":
+            if fuel < 1:
+                print("Not enough fuel.")
+                continue
 
-        fuel -= 2
-        time_left -= 2
+            fuel -= 1
+            actions_used += 1
 
-        options = random.sample(airports, 4)
+            print("\nFlight path analysis suggests a long international flight.")
 
-        print("\nAirports to investigate:\n")
+        elif action == "3":
 
-        for i, airport in enumerate(options):
+            if time_left < 2:
+                print("Not enough time.")
+                continue
 
-            city = airport[1].split("(")[0].split("-")[0].strip()
-            country = airport[2]
+            time_left -= 2
+            actions_used += 1
 
-            print(i+1, "-", city + ",", country)
+            city = criminal_airport[1]
+            city = city.split("(")[0].split("-")[0].strip()
 
-        choice = int(input("\nChoose airport (1-4): "))
-        selected = options[choice-1]
+            print("\nAirport CCTV spotted a suspicious traveler")
+            print("passing through:", city)
 
-        city = selected[1].split("(")[0].split("-")[0].strip()
-        country = selected[2]
+        elif action == "4":
 
-        print("\nYou investigated:", city + ",", country)
+            if fuel < 2 or time_left < 2:
+                print("Not enough resources.")
+                continue
 
-        if selected == criminal_airport:
+            fuel -= 2
+            time_left -= 2
 
-            print("\nYou found the criminal!")
-            print("MISSION COMPLETE")
-            break
+            # Build investigation options (1 correct + 3 random)
+            options = [criminal_airport]
+
+            while len(options) < 4:
+                candidate = random.choice(airports)
+                if candidate not in options:
+                    options.append(candidate)
+
+            random.shuffle(options)
+
+            print("\nAirports to investigate:\n")
+
+            for i, airport in enumerate(options):
+
+                city = airport[1].split("(")[0].split("-")[0].strip()
+                country = airport[2]
+
+                print(i+1, "-", city + ",", country)
+
+            try:
+                choice = int(input("\nChoose airport (1-4): "))
+
+                if choice < 1 or choice > 4:
+                    print("Invalid airport.")
+                    continue
+
+            except:
+                print("Invalid input.")
+                continue
+
+            selected = options[choice - 1]
+
+            city = selected[1].split("(")[0].split("-")[0].strip()
+            country = selected[2]
+
+            print("\nYou investigated:", city + ",", country)
+
+            if selected == criminal_airport:
+
+                print("\nYou found the criminal!")
+                print("MISSION COMPLETE")
+
+                caught = True
+                break
+
+            else:
+
+                print("\nWrong lead. The suspect escaped again.")
+                break
 
         else:
-            print("\nWrong lead. The suspect already left.")
+            print("Invalid action.")
+            continue
 
-    # Skip round
-    elif action == "4":
+        if actions_used >= 3:
+            print("\nYou must make a move now.")
+            continue
 
-        print("\nYou waited for more information.")
+        if fuel <= 0 or time_left <= 0:
+            break
 
-    else:
-        print("Invalid choice.")
-
-    # Criminal moves
-    criminal_airport = random.choice(airports)
-
-    if fuel <= 0 or time_left <= 0:
-
-        print("\nYou ran out of resources.")
-        print("The Phantom Traveler escaped.")
+    if caught or fuel <= 0 or time_left <= 0:
         break
+
+
+print("\n==============================")
+print("MISSION SUMMARY")
+print("==============================")
+
+if caught:
+
+    print("Result: SUCCESS")
+    print("You captured the Phantom Traveler.")
+
+else:
+
+    print("Result: FAILURE")
+    print("The suspect escaped.")
+
+print("\nFuel remaining:", fuel)
+print("Time remaining:", time_left)
+
+score = fuel + time_left
+
+if score >= 12:
+    rating = "EXCELLENT INVESTIGATOR"
+elif score >= 7:
+    rating = "GREAT DETECTIVE"
+elif score >= 3:
+    rating = "GOOD EFFORT"
+else:
+    rating = "BARELY SURVIVED"
+
+print("Rating:", rating)
